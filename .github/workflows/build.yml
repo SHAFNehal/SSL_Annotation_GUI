@@ -1,4 +1,4 @@
-name: Build Executables
+name: Build SSL Annotation Studio
 
 on:
   push:
@@ -8,19 +8,13 @@ on:
 
 jobs:
   build:
+    name: ${{ matrix.edition }} / ${{ matrix.os }}
+    timeout-minutes: 60
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        include:
-          - os: ubuntu-latest
-            artifact_name: AnnotationGUI-linux
-            executable: dist/AnnotationGUI
-          - os: windows-latest
-            artifact_name: AnnotationGUI-windows
-            executable: dist/AnnotationGUI.exe
-          - os: macos-latest
-            artifact_name: AnnotationGUI-macos
-            executable: dist/AnnotationGUI
+        edition: [manual, ai]
 
     runs-on: ${{ matrix.os }}
 
@@ -36,29 +30,66 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
-        run: |
-          pip install pyinstaller PySide6 Pillow
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
 
-      - name: Build executable (Linux/macOS)
-        if: matrix.os != 'windows-latest'
+      - name: Locate tool
+        shell: python
         run: |
-          pyinstaller --onefile --windowed \
-            --name "AnnotationGUI" \
-            --add-data "src:src" \
-            main.py
+          import os
+          from pathlib import Path
+          folder = Path('.') if Path('src/main_window.py').is_file() else Path('Annotation_GUI_Tool')
+          if not (folder / 'main.py').is_file():
+              raise SystemExit('SSL Annotation Studio source not found')
+          with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as env:
+              env.write(f'TOOL_DIR={folder.as_posix()}\n')
 
-      - name: Build executable (Windows)
-        if: matrix.os == 'windows-latest'
+      - name: Install desktop and build dependencies
+        working-directory: ${{ env.TOOL_DIR }}
         run: |
-          pyinstaller --onefile --windowed `
-            --name "AnnotationGUI" `
-            --add-data "src;src" `
-            main.py
+          uv venv --python 3.11
+          uv pip install -r requirements.txt "pyinstaller>=6.16,<7"
+
+      - name: Install AI CPU runtime (Linux and Windows)
+        if: matrix.edition == 'ai' && runner.os != 'macOS'
+        working-directory: ${{ env.TOOL_DIR }}
+        run: |
+          uv pip install torch==2.10.0 torchvision==0.25.0 --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install AI runtime (macOS)
+        if: matrix.edition == 'ai' && runner.os == 'macOS'
+        working-directory: ${{ env.TOOL_DIR }}
+        run: |
+          uv pip install torch==2.10.0 torchvision==0.25.0
+
+      - name: Install AI model libraries
+        if: matrix.edition == 'ai'
+        working-directory: ${{ env.TOOL_DIR }}
+        run: uv pip install transformers==4.57.6
+
+      - name: Test source
+        working-directory: ${{ env.TOOL_DIR }}
+        run: uv run --python 3.11 --no-sync python -m unittest discover -s tests
+
+      - name: Build manual edition
+        if: matrix.edition == 'manual'
+        working-directory: ${{ env.TOOL_DIR }}
+        run: uv run --python 3.11 --no-sync python build.py
+
+      - name: Build AI edition
+        if: matrix.edition == 'ai'
+        working-directory: ${{ env.TOOL_DIR }}
+        run: uv run --python 3.11 --no-sync python build.py --ai
+
+      - name: Check and archive packaged application
+        working-directory: ${{ env.TOOL_DIR }}
+        run: uv run --python 3.11 --no-sync python tests/check_bundle.py --edition ${{ matrix.edition }}
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: ${{ matrix.executable }}
+          name: SSLAnnotationStudio-${{ matrix.edition }}-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ env.TOOL_DIR }}/release/*
+          if-no-files-found: error
+          compression-level: 0
           retention-days: 30
