@@ -1,4 +1,5 @@
 @echo off
-REM Run script for Annotation GUI (Windows)
+REM Run script for SSL Annotation Studio (Windows)
 
-python main.py
+cd /d "%~dp0"
+uv run python main.py

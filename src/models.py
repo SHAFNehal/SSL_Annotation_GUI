@@ -3,6 +3,8 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 from datetime import datetime
 import uuid
+import hashlib
+import json
 
 
 @dataclass
@@ -73,6 +75,24 @@ class ImageData:
     width: int = 0
     height: int = 0
     annotations: List[Annotation] = field(default_factory=list)
+    ai_review: dict = field(default_factory=dict)
+
+    def annotation_fingerprint(self):
+        boxes = [(ann.id, ann.class_id, ann.class_name, ann.x_min, ann.y_min,
+                  ann.x_max, ann.y_max) for ann in self.annotations]
+        return hashlib.sha256(json.dumps(boxes, sort_keys=True).encode()).hexdigest()
+
+    def review_decision(self):
+        if not self.ai_review:
+            return "manual"
+        decision = self.ai_review.get("decision", "pending")
+        if decision in {"approved", "rejected"}:
+            if self.ai_review.get("reviewed_fingerprint") == self.annotation_fingerprint():
+                return decision
+        return "pending"
+
+    def can_export(self):
+        return self.review_decision() in {"manual", "approved"}
 
     def to_dict(self):
         return {
@@ -80,7 +100,8 @@ class ImageData:
             "filepath": self.filepath,
             "width": self.width,
             "height": self.height,
-            "annotations": [ann.to_dict() for ann in self.annotations]
+            "annotations": [ann.to_dict() for ann in self.annotations],
+            "ai_review": dict(self.ai_review, decision=self.review_decision()) if self.ai_review else {}
         }
 
     @classmethod
@@ -90,7 +111,8 @@ class ImageData:
             filepath=data.get("filepath", ""),
             width=data.get("width", 0),
             height=data.get("height", 0),
-            annotations=[Annotation.from_dict(ann) for ann in data.get("annotations", [])]
+            annotations=[Annotation.from_dict(ann) for ann in data.get("annotations", [])],
+            ai_review=data.get("ai_review", {})
         )
 
 

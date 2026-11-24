@@ -1,9 +1,23 @@
 """Exporters for VOC, YOLO, and COCO formats"""
 import json
+import hashlib
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import List
 from .models import Project, ImageData, Annotation
+from .branding import APP_NAME
+
+
+def eligible_for_export(image):
+    if not image.can_export():
+        return False
+    if image.ai_review:
+        # Approval belongs to the source bytes the reviewer actually inspected.
+        try:
+            return hashlib.sha256(Path(image.filepath).read_bytes()).hexdigest() == image.ai_review.get("source_sha256")
+        except OSError:
+            return False
+    return True
 
 
 class VOCExporter:
@@ -16,7 +30,10 @@ class VOCExporter:
         annotations_dir.mkdir(parents=True, exist_ok=True)
         
         for image_data in project.images:
-            if not image_data.annotations:
+            xml_file = annotations_dir / f"{Path(image_data.filename).stem}.xml"
+            valid_annotations = [annotation for annotation in image_data.annotations if annotation.is_valid()] if eligible_for_export(image_data) else []
+            if not valid_annotations:
+                xml_file.unlink(missing_ok=True)
                 continue
                 
             # Create XML
@@ -31,7 +48,7 @@ class VOCExporter:
             # Source
             source = ET.SubElement(root, "source")
             database = ET.SubElement(source, "database")
-            database.text = "AnnotationGUI"
+            database.text = APP_NAME
             
             # Size
             size = ET.SubElement(root, "size")
@@ -47,7 +64,7 @@ class VOCExporter:
             segmented.text = "0"
             
             # Objects
-            for ann in image_data.annotations:
+            for ann in valid_annotations:
                 if not ann.is_valid():
                     continue
                 obj = ET.SubElement(root, "object")
@@ -71,10 +88,11 @@ class VOCExporter:
                 ymax.text = str(ann.y_max)
             
             # Write XML
-            xml_file = annotations_dir / f"{Path(image_data.filename).stem}.xml"
             tree = ET.ElementTree(root)
             ET.indent(tree, space="  ")
-            tree.write(xml_file, encoding="utf-8", xml_declaration=True)
+            temporary = xml_file.with_suffix('.xml.tmp')
+            tree.write(temporary, encoding="utf-8", xml_declaration=True)
+            temporary.replace(xml_file)
 
 
 class YOLOExporter:
@@ -94,7 +112,9 @@ class YOLOExporter:
         
         # Export labels for each image (only create files for images with annotations)
         for image_data in project.images:
-            if not image_data.annotations:
+            label_file = labels_dir / f"{Path(image_data.filename).stem}.txt"
+            if not eligible_for_export(image_data) or not any(ann.is_valid() for ann in image_data.annotations):
+                label_file.unlink(missing_ok=True)
                 continue  # Skip images without annotations
                 
             label_file = labels_dir / f"{Path(image_data.filename).stem}.txt"
@@ -135,7 +155,7 @@ class COCOExporter:
         # Build COCO structure
         coco_data = {
             "info": {
-                "description": "AnnotationGUI Export",
+                "description": APP_NAME + " Export",
                 "version": project.version,
                 "year": 2024
             },
@@ -158,6 +178,8 @@ class COCOExporter:
         annotation_id = 1
         
         for image_data in project.images:
+            if not eligible_for_export(image_data):
+                continue
             # Add image (add all images, even if they have no annotations)
             coco_data["images"].append({
                 "id": image_id,

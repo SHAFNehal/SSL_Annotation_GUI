@@ -1,4 +1,5 @@
 #!/bin/bash
-# Run script for Annotation GUI
+# Run script for SSL Annotation Studio
 
-python3 main.py
+cd -- "$(dirname -- "$0")" || exit 1
+exec uv run python main.py

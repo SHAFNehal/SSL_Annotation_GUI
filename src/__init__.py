@@ -1,1 +1,1 @@
-"""Annotation GUI Application"""
+"""SSL Annotation Studio application."""

@@ -3,6 +3,7 @@ from PySide6.QtCore import Qt, QRectF, QPointF, Signal
 from PySide6.QtGui import QPixmap, QPen, QBrush, QColor
 from PySide6.QtWidgets import QGraphicsScene, QGraphicsPixmapItem, QGraphicsRectItem
 from typing import List, Optional
+from pathlib import Path
 from .models import ImageData, Annotation
 from .bounding_box_item import BoundingBoxItem
 from .project_manager import ProjectManager
@@ -15,6 +16,8 @@ class AnnotationScene(QGraphicsScene):
     box_selected = Signal(object)  # Emits Annotation
     boxes_selected = Signal(list)  # Emits list of Annotations
     box_created = Signal(object)  # Emits Annotation
+    annotations_changed = Signal()
+    box_edited = Signal(object, object)
     
     def __init__(self, project_manager: ProjectManager, parent=None):
         super().__init__(parent)
@@ -22,6 +25,7 @@ class AnnotationScene(QGraphicsScene):
         self.image_item: Optional[QGraphicsPixmapItem] = None
         self.box_items: List[BoundingBoxItem] = []
         self.current_image_data: Optional[ImageData] = None
+        self._image_signature = None
         
         # Drawing state
         self.is_drawing = False
@@ -30,6 +34,20 @@ class AnnotationScene(QGraphicsScene):
         
     def load_image(self, image_data: ImageData):
         """Load an image into the scene"""
+        try:
+            stat = Path(image_data.filepath).stat()
+            signature = (image_data.filepath, stat.st_size, stat.st_mtime_ns)
+        except OSError:
+            self.clear_scene()
+            return False
+        if self.current_image_data is image_data and self.image_item is not None and self._image_signature == signature:
+            self.cancel_drawing_box()
+            for item in self.box_items:
+                self.removeItem(item)
+            self.box_items.clear()
+            for annotation in image_data.annotations:
+                self.add_box_item(annotation)
+            return True
         self.clear_scene()
         self.current_image_data = image_data
         
@@ -39,6 +57,7 @@ class AnnotationScene(QGraphicsScene):
             return False
             
         self.image_item = QGraphicsPixmapItem(pixmap)
+        self._image_signature = signature
         # Set image z-value to 0 (background)
         self.image_item.setZValue(0)
         self.addItem(self.image_item)
@@ -59,6 +78,10 @@ class AnnotationScene(QGraphicsScene):
         self.box_items.clear()
         self.image_item = None
         self.current_image_data = None
+        self._image_signature = None
+        self.is_drawing = False
+        self.draw_start_pos = None
+        self.draw_rect_item = None
         self.clear()
         
     def add_box_item(self, annotation: Annotation):
@@ -71,7 +94,8 @@ class AnnotationScene(QGraphicsScene):
                     color = cls.color
                     break
         box_item = BoundingBoxItem(annotation, class_color=color, 
-                                   on_changed=self._on_box_changed)
+                                   on_changed=self._on_box_changed,
+                                   on_edit_finished=lambda ann, before: self.box_edited.emit(ann, before))
         self.addItem(box_item)
         self.box_items.append(box_item)
         
@@ -127,7 +151,7 @@ class AnnotationScene(QGraphicsScene):
         
     def update_drawing_box(self, pos: QPointF):
         """Update drawing box while dragging"""
-        if not self.is_drawing or not self.draw_start_pos:
+        if not self.is_drawing or self.draw_start_pos is None:
             return
             
         rect = QRectF(self.draw_start_pos, pos).normalized()
@@ -135,7 +159,7 @@ class AnnotationScene(QGraphicsScene):
         
     def finish_drawing_box(self, pos: QPointF) -> Optional[Annotation]:
         """Finish drawing box and create annotation"""
-        if not self.is_drawing or not self.draw_start_pos or not self.current_image_data:
+        if not self.is_drawing or self.draw_start_pos is None or not self.current_image_data:
             return None
             
         # Remove temporary rectangle
@@ -149,6 +173,10 @@ class AnnotationScene(QGraphicsScene):
         # Clamp to image bounds
         img_width = self.current_image_data.width
         img_height = self.current_image_data.height
+        rect = rect.intersected(QRectF(0, 0, img_width, img_height))
+        if rect.isEmpty():
+            self.is_drawing = False
+            return None
         x_min = max(0, min(int(rect.x()), img_width - 1))
         y_min = max(0, min(int(rect.y()), img_height - 1))
         x_max = max(x_min + 1, min(int(rect.x() + rect.width()), img_width))
@@ -175,7 +203,7 @@ class AnnotationScene(QGraphicsScene):
         )
         
         # Add to image data
-        self.current_image_data.annotations.append(annotation)
+        # The connected CreateBoxCommand owns the model insertion.
         
         # Add box item
         self.add_box_item(annotation)
@@ -188,6 +216,7 @@ class AnnotationScene(QGraphicsScene):
 
         self.is_drawing = False
         self.box_created.emit(annotation)
+        self.annotations_changed.emit()
         return annotation
         
     def cancel_drawing_box(self):
@@ -210,6 +239,7 @@ class AnnotationScene(QGraphicsScene):
                 if box_item.annotation == annotation:
                     box_item.update_rect()
                     break
+            self.annotations_changed.emit()
             
     def update_box_colors(self):
         """Update box colors based on class colors"""

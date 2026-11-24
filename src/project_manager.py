@@ -17,6 +17,33 @@ class ProjectManager:
         self.project: Optional[Project] = None
         self.project_path: Optional[Path] = None
         self.current_image_index: int = -1
+        self.is_dirty = False
+        self.last_error = ""
+        self._loaded_from_backup = False
+
+    def mark_dirty(self):
+        self.is_dirty = True
+
+    @staticmethod
+    def project_path_for_folder(folder: Path) -> Path:
+        local = folder / "project.json"
+        for candidate in [local, folder.parent / "project.json"]:
+            if not candidate.exists():
+                continue
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+            except (ValueError, OSError):
+                try:
+                    data = json.loads(candidate.with_suffix(".json.bak").read_text(encoding="utf-8"))
+                except (ValueError, OSError):
+                    if candidate == local:
+                        raise ValueError("This folder's project and backup could not be read. Existing files were preserved.")
+                    continue
+            if Path(data.get("image_folder", "")).resolve() == folder.resolve():
+                return candidate
+            if candidate == local:
+                raise ValueError("The project.json in this folder belongs to another image folder. It was not overwritten.")
+        return local
         
     def create_project(self, image_folder: str, project_path: Optional[str] = None) -> bool:
         """Create a new project from an image folder"""
@@ -28,8 +55,7 @@ class ProjectManager:
         if project_path:
             self.project_path = Path(project_path)
         else:
-            # Use image folder parent as project root
-            self.project_path = image_folder_path.parent / "project.json"
+            self.project_path = image_folder_path / "project.json"
         
         # Load images
         image_files = self._find_image_files(image_folder_path)
@@ -61,8 +87,18 @@ class ProjectManager:
         
         # Try to import existing annotations from exports folder
         if self.project_path:
-            ImportManager.import_existing_annotations(self.project, self.project_path)
-        
+            imported = ImportManager.import_existing_annotations(self.project, self.project_path)
+            if imported and not any(ann.class_id == 0 for image in self.project.images for ann in image.annotations):
+                # The generic placeholder should not become the default for imported species.
+                mapping = {cls.id: index for index, cls in enumerate(self.project.classes[1:])}
+                self.project.classes = self.project.classes[1:]
+                for cls in self.project.classes:
+                    cls.id = mapping[cls.id]
+                for image in self.project.images:
+                    for ann in image.annotations:
+                        ann.class_id = mapping[ann.class_id]
+        self.is_dirty = True
+        self._loaded_from_backup = False
         return True
         
     def load_project(self, project_path: str) -> bool:
@@ -78,9 +114,9 @@ class ProjectManager:
             self.project_path = project_file
             self.current_image_index = 0 if self.project.images else -1
             
-            # Try to import existing annotations from exports folder
-            ImportManager.import_existing_annotations(self.project, self.project_path)
-            
+            # Saved projects are authoritative, including deliberately empty labels.
+            self.is_dirty = False
+            self._loaded_from_backup = False
             return True
         except Exception:
             # Try backup
@@ -93,9 +129,8 @@ class ProjectManager:
                     self.project_path = project_file
                     self.current_image_index = 0 if self.project.images else -1
                     
-                    # Try to import existing annotations from exports folder
-                    ImportManager.import_existing_annotations(self.project, self.project_path)
-                    
+                    self.is_dirty = True
+                    self._loaded_from_backup = True
                     return True
                 except Exception:
                     pass
@@ -105,10 +140,12 @@ class ProjectManager:
         """Save project to file with crash-safe write"""
         if not self.project or not self.project_path:
             return False
+        if not self.is_dirty and self.project_path.exists():
+            return True
             
         try:
             # Create backup
-            if self.project_path.exists():
+            if self.project_path.exists() and not self._loaded_from_backup:
                 backup_path = self.project_path.with_suffix('.json.bak')
                 shutil.copy2(self.project_path, backup_path)
             
@@ -119,18 +156,18 @@ class ProjectManager:
             # Write to temp file
             temp_path = self.project_path.with_suffix('.json.tmp')
             with open(temp_path, 'w', encoding='utf-8') as f:
-                json.dump(self.project.to_dict(), f, indent=2)
+                json.dump(self.project.to_dict(), f, separators=(",", ":"))
+                f.flush()
+                os.fsync(f.fileno())
             
             # Atomic rename
-            if os.name == 'nt':  # Windows
-                if self.project_path.exists():
-                    os.remove(self.project_path)
-                os.rename(temp_path, self.project_path)
-            else:  # Unix-like
-                os.replace(temp_path, self.project_path)
-                
+            os.replace(temp_path, self.project_path)
+            self.is_dirty = False
+            self._loaded_from_backup = False
+            self.last_error = ""
             return True
         except Exception as e:
+            self.last_error = str(e)
             print(f"Error saving project: {e}")
             return False
             
@@ -158,13 +195,14 @@ class ProjectManager:
 
         # Reset current index if it's now out of range
         if self.current_image_index >= len(self.project.images):
-            self.current_image_index = max(0, len(self.project.images) - 1)
+            self.current_image_index = len(self.project.images) - 1
 
         # --- Add new images ---
         existing_filenames = {img.filename for img in self.project.images}
         image_files = self._find_image_files(folder_path)
 
         new_count = 0
+        new_images = []
         for img_path in image_files:
             if img_path.name not in existing_filenames:
                 try:
@@ -177,10 +215,17 @@ class ProjectManager:
                         height=height
                     )
                     self.project.images.append(image_data)
+                    new_images.append(image_data)
                     new_count += 1
                 except Exception:
                     continue
 
+        if new_count or removed_count:
+            self.mark_dirty()
+        if new_images and self.project_path:
+            additions = Project(image_folder=self.project.image_folder,
+                                classes=self.project.classes, images=new_images)
+            ImportManager.import_existing_annotations(additions, self.project_path)
         return (new_count, removed_count)
 
     def get_current_image(self) -> Optional[ImageData]:
@@ -206,6 +251,7 @@ class ProjectManager:
             return -1
         class_id = len(self.project.classes)
         self.project.classes.append(ClassDefinition(id=class_id, name=name, color=color))
+        self.mark_dirty()
         return class_id
         
     def get_class(self, class_id: int) -> Optional[ClassDefinition]:
@@ -220,8 +266,4 @@ class ProjectManager:
     def _find_image_files(self, folder: Path) -> List[Path]:
         """Find all image files in folder"""
         extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp'}
-        image_files = []
-        for ext in extensions:
-            image_files.extend(folder.glob(f'*{ext}'))
-            image_files.extend(folder.glob(f'*{ext.upper()}'))
-        return sorted(image_files)
+        return sorted(path for path in folder.iterdir() if path.is_file() and path.suffix.lower() in extensions)

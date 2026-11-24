@@ -2,6 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 from .models import Annotation, ImageData
+from copy import deepcopy
 
 
 class Command(ABC):
@@ -18,6 +19,21 @@ class Command(ABC):
         pass
 
 
+class ApplyAIDraftCommand(Command):
+    """Replace an empty image's working draft as one undoable operation."""
+
+    def __init__(self, image, annotations, review):
+        self.image = image
+        self.before = (list(image.annotations), deepcopy(image.ai_review))
+        self.after = (list(annotations), deepcopy(review))
+
+    def execute(self):
+        self.image.annotations, self.image.ai_review = list(self.after[0]), deepcopy(self.after[1])
+
+    def undo(self):
+        self.image.annotations, self.image.ai_review = list(self.before[0]), deepcopy(self.before[1])
+
+
 class CreateBoxCommand(Command):
     """Command to create a new bounding box"""
     
@@ -26,7 +42,8 @@ class CreateBoxCommand(Command):
         self.annotation = annotation
         
     def execute(self):
-        self.image_data.annotations.append(self.annotation)
+        if self.annotation not in self.image_data.annotations:
+            self.image_data.annotations.append(self.annotation)
         
     def undo(self):
         if self.annotation in self.image_data.annotations:

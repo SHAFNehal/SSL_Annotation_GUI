@@ -10,9 +10,9 @@ class VOCImporter:
     """Imports annotations from Pascal VOC XML format"""
     
     @staticmethod
-    def import_from_folder(exports_dir: Path, project: Project) -> bool:
+    def import_from_folder(exports_dir: Path, project: Project, annotations_dir: Optional[Path] = None) -> bool:
         """Import annotations from VOC format"""
-        annotations_dir = exports_dir / "voc" / "Annotations"
+        annotations_dir = annotations_dir if annotations_dir is not None else exports_dir / "voc" / "Annotations"
         if not annotations_dir.exists():
             return False
         
@@ -326,6 +326,10 @@ class ImportManager:
         """Import existing annotations from exports folder if available"""
         if not project_path or not project:
             return False
+        # Sidecar VOCs allow existing dataset folders to be opened directly.
+        image_folder = Path(project.image_folder)
+        if VOCImporter.import_from_folder(project_path.parent / "exports", project, annotations_dir=image_folder):
+            return True
         
         exports_dir = project_path.parent / "exports"
         if not exports_dir.exists():

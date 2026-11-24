@@ -1,9 +1,30 @@
 """Bounding box graphics item with resize handles"""
 from PySide6.QtCore import Qt, QRectF, QPointF
-from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QCursor
-from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsItem
+from PySide6.QtGui import QPen, QBrush, QColor, QPainter, QCursor, QFont
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsItem, QGraphicsSimpleTextItem
 from typing import Optional, Callable
 from .models import Annotation
+
+
+class BoxLabel(QGraphicsSimpleTextItem):
+    """Keep species names readable regardless of image zoom."""
+
+    def __init__(self, text, color, parent):
+        super().__init__(text, parent)
+        self.color = QColor(color)
+        self.setFont(QFont("Noto Sans", 9))
+        self.setBrush(QBrush(Qt.white))
+        self.setFlag(QGraphicsItem.ItemIgnoresTransformations, True)
+        self.setAcceptedMouseButtons(Qt.NoButton)
+
+    def boundingRect(self):
+        return super().boundingRect().adjusted(-5, -3, 5, 3)
+
+    def paint(self, painter, option, widget=None):
+        painter.setPen(Qt.NoPen)
+        painter.setBrush(self.color)
+        painter.drawRoundedRect(self.boundingRect(), 3, 3)
+        super().paint(painter, option, widget)
 
 
 class BoundingBoxItem(QGraphicsRectItem):
@@ -13,16 +34,20 @@ class BoundingBoxItem(QGraphicsRectItem):
     HANDLE_HALF = HANDLE_SIZE / 2
     
     def __init__(self, annotation: Annotation, class_color: str = "#FF0000", 
-                 on_changed: Optional[Callable[[Annotation], None]] = None, parent=None):
+                 on_changed: Optional[Callable[[Annotation], None]] = None, parent=None,
+                 on_edit_finished=None):
         super().__init__(parent)
         self.annotation = annotation
         self._class_color = class_color
         self._on_changed_callback = on_changed
+        self._on_edit_finished = on_edit_finished
+        self._gesture_before = None
         self.setFlag(QGraphicsItem.ItemIsMovable, True)
         self.setFlag(QGraphicsItem.ItemIsSelectable, True)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges, True)
         self.setAcceptHoverEvents(True)
         self.setFlag(QGraphicsItem.ItemSendsScenePositionChanges, True)
+        self.label_item = BoxLabel(annotation.class_name, class_color, self)
         
         # Set initial rect
         self.update_rect()
@@ -38,6 +63,9 @@ class BoundingBoxItem(QGraphicsRectItem):
     def set_class_color(self, color: str):
         """Set class color for this box"""
         self._class_color = color
+        self.label_item.color = QColor(color)
+        self.label_item.setText(self.annotation.class_name)
+        self.label_item.update()
         self.update()
         
     def update_rect(self):
@@ -51,18 +79,19 @@ class BoundingBoxItem(QGraphicsRectItem):
             height = max(1, height)
         
         rect = QRectF(
-            float(self.annotation.x_min),
-            float(self.annotation.y_min),
+            float(self.annotation.x_min) - self.pos().x(),
+            float(self.annotation.y_min) - self.pos().y(),
             float(width),
             float(height)
         )
         self.setRect(rect)
+        self.label_item.setPos(rect.topLeft())
         self.prepareGeometryChange()
         
     def update_annotation(self):
         """Update annotation from rectangle"""
         from datetime import datetime
-        rect = self.rect()
+        rect = self.mapRectToScene(self.rect())
         self.annotation.x_min = int(rect.x())
         self.annotation.y_min = int(rect.y())
         self.annotation.x_max = int(rect.x() + rect.width())
@@ -94,17 +123,6 @@ class BoundingBoxItem(QGraphicsRectItem):
         painter.setPen(pen)
         painter.setBrush(QBrush(Qt.NoBrush))
         painter.drawRect(rect)
-        
-        # Draw label
-        if self.annotation.class_name:
-            painter.setPen(QPen(Qt.white))
-            painter.setBrush(QBrush(color))
-            font = painter.font()
-            font.setPointSize(10)
-            painter.setFont(font)
-            label_rect = QRectF(rect.x(), max(0, rect.y() - 20), 100, 18)
-            painter.drawRect(label_rect)
-            painter.drawText(label_rect, Qt.AlignCenter, self.annotation.class_name)
         
         # Draw resize handles if selected
         if self.isSelected():
@@ -155,6 +173,8 @@ class BoundingBoxItem(QGraphicsRectItem):
     def mousePressEvent(self, event):
         """Handle mouse press for resizing"""
         if event.button() == Qt.LeftButton:
+            self._gesture_before = (self.annotation.x_min, self.annotation.y_min,
+                                    self.annotation.x_max, self.annotation.y_max)
             pos = event.pos()
             rect = self.rect()
             handles = self._get_handle_positions(rect)
@@ -220,6 +240,11 @@ class BoundingBoxItem(QGraphicsRectItem):
             event.accept()
         else:
             super().mouseReleaseEvent(event)
+        before = self._gesture_before
+        self._gesture_before = None
+        after = (self.annotation.x_min, self.annotation.y_min, self.annotation.x_max, self.annotation.y_max)
+        if before is not None and before != after and self._on_edit_finished:
+            self._on_edit_finished(self.annotation, before)
             
     def hoverMoveEvent(self, event):
         """Change cursor on handle hover"""
