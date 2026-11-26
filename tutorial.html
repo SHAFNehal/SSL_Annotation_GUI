@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SSL Annotation Studio Tutorial</title>
+<style>
+  :root {
+    --page: #f7f8f6; --surface: #ffffff; --text: #242a2f; --muted: #68727d;
+    --line: #dde3e6; --accent: #147c82; --accent-dark: #0d5f66;
+    --accent-soft: #e8f4f3; --warn: #b34038; --warn-soft: #fbeceb;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text);
+    font: 16px/1.6 "Noto Sans", -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { background: var(--surface); border-bottom: 1px solid var(--line); padding: 28px 16px; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 16px; }
+  header .wrap { padding: 0; display: flex; align-items: center; gap: 20px; }
+  header img { height: 45px; width: auto; flex: none; margin-left: auto; }
+  @media (max-width: 520px) { header .wrap { flex-direction: column-reverse; align-items: flex-start; gap: 12px; } header img { margin-left: 0; } }
+  h1 { margin: 0 0 4px; font-size: 1.9rem; color: var(--accent-dark); }
+  header p { margin: 0; color: var(--muted); }
+  nav { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  nav .wrap { display: flex; gap: 20px; flex-wrap: wrap; padding: 10px 16px; font-size: .92rem; }
+  nav a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  nav a:hover { text-decoration: underline; }
+  a { color: var(--accent); }
+  section { margin: 40px 0; }
+  h2 { font-size: 1.5rem; border-bottom: 2px solid var(--accent); padding-bottom: 6px; color: var(--accent-dark); }
+  h3 { margin: 28px 0 6px; font-size: 1.1rem; }
+  .steps { list-style: none; counter-reset: step; padding: 0; margin: 16px 0; }
+  .steps > li { counter-increment: step; padding: 6px 0 6px 40px; margin: 10px 0; position: relative; }
+  .steps > li::before { content: counter(step) "."; position: absolute; left: 0; top: 6px;
+    width: 28px; text-align: right; font-weight: 700; color: var(--accent); }
+  .steps b { color: var(--accent-dark); }
+  .steps ul { margin: 6px 0 0; }
+  .steps figure { margin-left: -40px; }
+  kbd { background: var(--accent-soft); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 4px; padding: 1px 6px; font: .85em ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; }
+  code { background: var(--accent-soft); padding: 1px 5px; border-radius: 4px;
+    font: .88em ui-monospace, Menlo, Consolas, monospace; }
+  .note, .warn { border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: .95rem; }
+  .note { background: var(--accent-soft); }
+  .warn { background: var(--warn-soft); }
+  table { width: 100%; border-collapse: collapse; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 8px; overflow: hidden; font-size: .95rem; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { background: var(--accent-soft); color: var(--accent-dark); }
+  tr:last-child td { border-bottom: 0; }
+  .tablewrap { overflow-x: auto; }
+  figure { margin: 16px 0; }
+  figure img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 10px; display: block; }
+  figure.narrow img { max-width: 420px; margin: auto; }
+  figcaption { color: var(--muted); font-size: .85rem; margin-top: 6px; text-align: center; }
+  footer { border-top: 1px solid var(--line); background: var(--surface); padding: 20px 16px;
+    color: var(--muted); font-size: .88rem; }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap">
+    <div>
+      <h1>SSL Annotation Studio Tutorial</h1>
+      <p>Draw bounding boxes, export training labels, and speed up the work with AI Assist.</p>
+    </div>
+    <img src="tutorial_images/logo.png" alt="Stochastic Simulation Lab logo">
+  </div>
+</header>
+
+<nav>
+  <div class="wrap">
+    <a href="#start">Getting started</a>
+    <a href="#manual">Manual annotation</a>
+    <a href="#export">Exporting</a>
+    <a href="#ai">AI Assist</a>
+    <a href="#shortcuts">Shortcuts</a>
+    <a href="#help">Troubleshooting</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section id="start">
+  <h2>Getting started</h2>
+  <ol class="steps">
+    <li><b>Download</b> the build for your system from the
+      <a href="https://github.com/SHAFNehal/SSL_Annotation_GUI">GitHub page</a>. There are two editions:
+      <b>Manual</b> (small, no AI) and <b>AI</b> (large, includes AI Assist).</li>
+    <li><b>Extract</b> the download fully. For the AI edition, keep the whole folder (or app) together.</li>
+    <li><b>Launch</b> <code>SSLAnnotationStudio</code> (or <code>SSLAnnotationStudio-AI</code>).</li>
+  </ol>
+  <div class="warn">The apps are not signed, so Windows and macOS may show a security warning on first launch.
+    On macOS, right-click the app and choose <b>Open</b>. On Windows, choose <b>More info</b>, then <b>Run anyway</b>.
+    On Linux, make the file executable if needed (<code>chmod +x</code>).</div>
+  <p>The window has three panels: the <b>image list</b> on the left, the <b>canvas</b> in the middle,
+    and <b>labels</b> on the right.</p>
+  <figure><img src="tutorial_images/01-start.png" alt="The start screen before a folder is opened" loading="lazy"><figcaption>The start screen before a folder is opened.</figcaption></figure>
+</section>
+
+<section id="manual">
+  <h2>Part 1: Manual annotation</h2>
+  <p>This works in both editions and needs no internet connection.</p>
+
+  <ol class="steps">
+    <li><b>Open your images.</b> Click <b>Open Folder</b> and choose the folder with your JPG, PNG, BMP, TIFF, or
+      WEBP images. If Pascal VOC XML files with matching names sit beside the images, their boxes are imported.
+      <figure><img src="tutorial_images/02-folder-open.png" alt="After Open Folder: images listed on the left, labels on the right" loading="lazy"><figcaption>After Open Folder: images are listed on the left, labels on the right.</figcaption></figure></li>
+    <li><b>Create a label.</b> In the right panel click <b>Add Label</b> and enter a name, for example
+      <code>clb</code>. Choose it in the <b>Active label</b> dropdown.</li>
+    <li><b>Draw a box.</b> Press <kbd>B</kbd> (or click <b>Draw Box</b>), then drag around the object.
+      The new box takes the active label and is selected.
+      <figure><img src="tutorial_images/03-draw-box.png" alt="Drawing a box" loading="lazy"><figcaption>Draw Box active: drag around the insect (label: clb).</figcaption></figure></li>
+    <li><b>Adjust it.</b> Press <kbd>S</kbd> for the Select tool. Drag a box to move it, or drag its handles to resize.
+      Press <kbd>Delete</kbd> to remove it.
+      <figure><img src="tutorial_images/04-select-box.png" alt="A selected box with handles" loading="lazy"><figcaption>A selected box shows resize handles and its coordinates under Box details.</figcaption></figure></li>
+    <li><b>Change a label.</b> With a box selected, pick another label in the dropdown or press a number key
+      (<kbd>1</kbd>-<kbd>9</kbd>, <kbd>0</kbd>). With nothing selected, the choice applies to the next box you draw.</li>
+    <li><b>Go to the next image.</b> Press <kbd>D</kbd> or <kbd>→</kbd>. Use <kbd>A</kbd> or <kbd>←</kbd> to go back.
+      Your work is saved automatically.</li>
+  </ol>
+
+  <h3>Finding images</h3>
+  <ul>
+    <li>Type in the search box to filter by filename.</li>
+    <li>Choose <b>All images</b>, <b>Without boxes</b>, or <b>With boxes</b>. Previous and Next follow the filter, so
+      <b>Without boxes</b> is a quick way to find what is left.</li>
+    <li>Use <b>Go to</b> to jump to an image number, or <kbd>Home</kbd> / <kbd>End</kbd> for the first and last.</li>
+  </ul>
+
+  <h3>Saving</h3>
+  <p>Changes autosave after about a second of inactivity and before you change images. The header shows
+    <b>Saved</b>, <b>Unsaved changes</b>, or <b>Save failed</b>. Press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save immediately.
+    The progress bar counts images with at least one box. It does not mean they were reviewed.</p>
+  <figure><img src="tutorial_images/05-labels-progress.png" alt="The label tag on the box, a saved project, and the progress bar" loading="lazy"><figcaption>The label tag on the box, the Saved badge, and the progress bar.</figcaption></figure>
+
+  <h3>Fixing a misspelled label</h3>
+  <p>Select it in the Labels list and click <b>Rename Label...</b>. Every box using it is updated across all
+    images. Export again afterward.</p>
+
+  <div class="note"><b>Tip:</b> Use <kbd>Ctrl</kbd>+mouse wheel to zoom, <kbd>Ctrl</kbd>+<kbd>0</kbd> to fit the image,
+    <kbd>H</kbd> to pan, and <kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd> to undo and redo.</div>
+</section>
+
+<section id="export">
+  <h2>Exporting labels</h2>
+  <p>Click <b>Export Labels</b> or press <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>. Files are written to an
+    <code>exports</code> folder inside your image folder.</p>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Format</th><th>Location</th></tr>
+    <tr><td>Pascal VOC</td><td><code>exports/voc/Annotations/*.xml</code></td></tr>
+    <tr><td>COCO</td><td><code>exports/coco/annotations.json</code></td></tr>
+    <tr><td>YOLO</td><td><code>exports/yolo/labels/*.txt</code> and <code>classes.txt</code></td></tr>
+  </table>
+  </div>
+  <p>Export again whenever you edit, because exports are only created on request. Your working data lives in
+    <code>project.json</code> in the same folder, with a <code>project.json.bak</code> backup.</p>
+</section>
+
+<section id="ai">
+  <h2>Part 2: AI Assist</h2>
+  <p>AI Assist drafts boxes from a text description so you can correct them instead of drawing each one.
+    It needs the <b>AI edition</b>.</p>
+
+  <div class="note"><b>Before you start:</b> the first run downloads the AI model, so it needs an internet connection
+    and some free disk space. After that it runs locally, and your images are never uploaded.
+    Without a GPU it runs on the CPU, which can be slow for large batches.</div>
+
+  <ol class="steps">
+    <li><b>Open a folder</b> of images and create the label for what you want to find (for example <code>crb</code>).</li>
+    <li><b>Open AI Assist.</b> Click <b>AI Assist...</b> in the right panel, or use <b>AI &gt; Generate Drafts</b>.</li>
+    <li><b>Choose the scope.</b>
+      <ul>
+        <li><b>Current image</b> for a quick test.</li>
+        <li><b>All unannotated, unprocessed images</b> for the whole folder. Images that already have boxes are
+          never changed.</li>
+      </ul></li>
+    <li><b>Pick the label</b> the drafts should receive.</li>
+    <li><b>Describe the object.</b> Enter what it looks like, such as <code>a beetle; an adult beetle</code>.
+      Separate several prompts with semicolons. A species name alone often works poorly.</li>
+    <li><b>Choose a device.</b> <code>auto</code> uses a GPU when available, otherwise the CPU. You can also pick
+      <code>cpu</code> or <code>cuda:0</code>. The default <b>Box confidence</b> of 0.35 is a good start.
+      Lower it to find more objects, or raise it to cut false detections.
+      <figure class="narrow"><img src="tutorial_images/06-ai-dialog.png" alt="The AI Assist dialog" loading="lazy"><figcaption>The AI Assist dialog.</figcaption></figure></li>
+    <li><b>Click Generate Drafts.</b> Progress appears in the dialog. When it finishes you return to the canvas
+      automatically. Use <b>Stop</b> only to cancel. Finished drafts are kept. If errors occur, the dialog stays open so
+      you can read them, then choose <b>Review Drafts</b> or <b>Close</b>.</li>
+  </ol>
+
+  <h3>Reviewing drafts</h3>
+  <p>AI boxes are suggestions. Check every image before it goes into your dataset.</p>
+  <figure><img src="tutorial_images/07-ai-review.png" alt="A draft awaiting review" loading="lazy"><figcaption>A draft awaiting review. The right panel shows &ldquo;Pending AI review&rdquo; with Approve and Reject.</figcaption></figure>
+
+  <ol class="steps">
+    <li><b>Open an image</b> from the list. Use the filters <b>Needs AI review</b>, <b>AI approved</b>, and
+      <b>AI rejected</b> to work through them.</li>
+    <li><b>Correct the boxes</b> with the same tools as manual annotation: move, resize, delete false detections,
+      and draw anything missed.</li>
+    <li><b>Decide.</b> Click <b>Approve</b> if the image is right. Click <b>Reject</b> if it isn't usable.
+      Rejecting never deletes the image or its boxes. <b>AI &gt; Reset Current Review</b> puts it back to pending.</li>
+    <li><b>Export Labels.</b> Only approved AI images are exported.</li>
+  </ol>
+
+  <figure><img src="tutorial_images/08-ai-approved.png" alt="After Approve, the image is included in the export" loading="lazy"><figcaption>After Approve, the image is included in the export.</figcaption></figure>
+  <div class="warn"><b>Check carefully:</b>
+    <ul>
+      <li>An image with no detections is <b>not</b> confirmed empty. Add a box, or reject it.</li>
+      <li>AI does not identify species. Every box gets the label you chose, so watch for other species,
+        caterpillars or other life stages, duplicates, and missed objects.</li>
+      <li>Editing a box or label after approval puts the image back into review.</li>
+    </ul>
+  </div>
+</section>
+
+<section id="shortcuts">
+  <h2>Keyboard shortcuts</h2>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Action</th><th>Keys</th></tr>
+    <tr><td>Previous / next image</td><td><kbd>←</kbd> <kbd>→</kbd> or <kbd>A</kbd> <kbd>D</kbd></td></tr>
+    <tr><td>First / last image</td><td><kbd>Home</kbd> / <kbd>End</kbd></td></tr>
+    <tr><td>Select / Draw box / Pan</td><td><kbd>S</kbd> / <kbd>B</kbd> / <kbd>H</kbd></td></tr>
+    <tr><td>Delete box / select all / deselect</td><td><kbd>Delete</kbd> / <kbd>Ctrl</kbd>+<kbd>A</kbd> / <kbd>Esc</kbd></td></tr>
+    <tr><td>Assign label by number</td><td><kbd>1</kbd>-<kbd>9</kbd>, <kbd>0</kbd></td></tr>
+    <tr><td>Zoom / fit / 100%</td><td><kbd>Ctrl</kbd>+Wheel / <kbd>Ctrl</kbd>+<kbd>0</kbd> / <kbd>Ctrl</kbd>+<kbd>1</kbd></td></tr>
+    <tr><td>Undo / redo</td><td><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>Ctrl</kbd>+<kbd>Y</kbd></td></tr>
+    <tr><td>Save / export</td><td><kbd>Ctrl</kbd>+<kbd>S</kbd> / <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd></td></tr>
+  </table>
+  </div>
+  <p>On macOS, <kbd>Ctrl</kbd> may appear as <kbd>Cmd</kbd>.</p>
+</section>
+
+<section id="help">
+  <h2>Troubleshooting</h2>
+  <div class="tablewrap">
+  <table>
+    <tr><th>Problem</th><th>Fix</th></tr>
+    <tr><td>Security warning on launch</td><td>The app is unsigned. Use the Open / Run anyway steps in Getting started.</td></tr>
+    <tr><td>Images don't appear</td><td>Use JPG, PNG, BMP, TIFF, or WEBP files directly inside the chosen folder.</td></tr>
+    <tr><td>AI Assist is missing or says libraries are absent</td><td>Use the AI edition, and keep its whole folder together.</td></tr>
+    <tr><td>AI generation fails at first use</td><td>Check your internet connection. The model downloads on the first run.</td></tr>
+    <tr><td>AI is very slow</td><td>CPU inference is slow. Try <b>Current image</b> first, or process smaller batches.</td></tr>
+    <tr><td>&ldquo;Save failed&rdquo; in the header</td><td>Check that the image folder is writable and has free space, then press <kbd>Ctrl</kbd>+<kbd>S</kbd>.</td></tr>
+    <tr><td>Linux: app won't start</td><td>Install the Qt libraries: <code>sudo apt install libegl1 libgl1 libxkbcommon0</code></td></tr>
+  </table>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    SSL Annotation Studio is developed by the Stochastic Simulation Lab (SSL) with funding support from the
+    United States Department of Agriculture (USDA). Funding PI: Syed Hasib Akhter Faruqui.
+    <a href="https://www.shafnehal.com/">www.shafnehal.com</a> &middot;
+    <a href="https://github.com/SHAFNehal/SSL_Annotation_GUI">GitHub</a>
+  </div>
+</footer>
+
+</body>
+</html>
